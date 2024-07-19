@@ -1,0 +1,17 @@
+.pytest_cache/
+.vscode/
+dist/
+inventory/
+logs/
+out_files/
+reports/
+tests/
+*.yaml
+hosts.yaml.*
+*.log
+test.py
+TODO.md
+poetry.lock
+enc-test*
+encrypted*
+*.pyc
