@@ -1,7 +1,7 @@
 .pytest_cache/
 .vscode/
 dist/
-inventory/
+.inventory
 logs/
 out_files/
 reports/
