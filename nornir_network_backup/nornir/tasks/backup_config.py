@@ -20,6 +20,17 @@ logger = logging.getLogger(__name__)
 CONNECTION_NAME = "netmiko"
 
 
+def _running_config_sanitation(conf: str):
+    """Validates or cleans data in the running config."""
+    new_running_config = []
+    for line in conf.splitlines():
+        if line.endswith("#"):
+            continue
+        new_running_config.append(line)
+
+    return "\n".join(new_running_config)
+
+
 def task_backup_config(
     task: Task,
     user_config: dict,
@@ -65,6 +76,7 @@ def task_backup_config(
 
         if not r.failed:
             result["get_running_config"] = True
+            facts_raw_output_config = ""
 
             # get all the facts
             if user_config["facts"]["enabled"]:
@@ -72,9 +84,35 @@ def task_backup_config(
                     task=task_get_facts,
                     user_config=user_config,
                 )
-                
+
                 # get "summary" facts, these will be included in the general backup config
                 if not fact_tasks_output.failed:
+
+                    # add facts that should be included in the running-config (as comment)
+                    if user_config["facts"].get("facts_in_config"):
+                        for _fact_output_cmd in fact_tasks_output.facts_raw_output:
+                            if (
+                                _fact_output_cmd
+                                not in user_config["facts"]["facts_in_config"]
+                            ):
+                                continue
+
+                            facts_raw_output_config += (
+                                generate_comment(
+                                    [
+                                        line
+                                        for line in fact_tasks_output.facts_raw_output[
+                                            _fact_output_cmd
+                                        ]
+                                        if line and not line.endswith("#")
+                                    ],
+                                    comment_str=f"! {_fact_output_cmd.upper()}:",
+                                    header=[],
+                                    footer=[],
+                                )
+                                + "\n" * 2
+                            )
+
                     try:
                         summary_facts = get_summary_facts(
                             fact_tasks_output,
@@ -100,10 +138,10 @@ def task_backup_config(
                 task=write_file,
                 filename=backup_config_file,
                 content=generate_comment(summary_facts)
-                + "\n"
-                + r.result
-                + "\n"
-                + generate_comment("### END OF CONFIG ###", header=[""]),
+                + facts_raw_output_config
+                + generate_comment("### RUNNING-CONFIG ###", header=[""])
+                + _running_config_sanitation(r.result)
+                + generate_comment(["", "### END OF CONFIG ###"], header=[""]),
             )
 
             if not r.failed:

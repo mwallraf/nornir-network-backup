@@ -52,7 +52,7 @@ def _init_nornir(
         nornir_config["user_defined"]["facts"]["enabled"] = gather_facts
 
     nr = InitNornir(**nornir_config)
-    
+
     nr = nr.with_processors([TaskDuration()])
 
     return nr
@@ -62,10 +62,10 @@ def _apply_transform_consolidate_fact_commands(nr: Nornir) -> Nornir:
     """applies the inventory transformation that creates the "consolidated_fact_commands" argument
     holding all the fact commands that should be executed for the host
     """
-    
+
     nr = transform_consolidate_fact_commands(nr)
-    return nr    
-    
+    return nr
+
 
 def _apply_inventory_transformation(
     nr, username: str = None, password: str = None, platform: str = None
@@ -209,6 +209,7 @@ def clean_command_string(cmd: str) -> str:
     """cleans a command to generate a string without spaces or special characters"""
     return cmd.replace(" ", "_").replace("|", "_")
 
+
 def generate_comment(
     data,
     comment_str="!",
@@ -263,24 +264,29 @@ def generate_comment(
     if footer:
         result = result + footer
 
-    return "\n".join(map(lambda x: f"{comment_str} {x}", result))
+    result += [""]
+
+    return "\n".join(map(lambda x: f"{comment_str} {x}", result)) + "\n"
 
 
 def rename_failed_hosts_backup_file(failed_hosts, user_config):
     """for every host that failed, the config backup file will be renamed
     and ".failed" will be appended
-    
+
     In some cases the job may be failed but getting the running config was
     successful, in that case the original config backup will be stored as well,
     so there will a a .failed + a config file at the same time.
-    
+
     If the filename does not yet exist, then an emtpy file will be created
     """
     for host in failed_hosts:
         backup_fn = generate_filename("backup", host, user_config)
         backup_fn_handle = Path(backup_fn)
         if backup_fn_handle.exists():
-            if backup_fn_handle.stat().st_size == 0 or backup_fn_handle.stat().st_ctime > 86400:
+            if (
+                backup_fn_handle.stat().st_size == 0
+                or backup_fn_handle.stat().st_ctime > 86400
+            ):
                 rename_file(backup_fn, f"{backup_fn}.failed")
                 return
         touch_file(f"{backup_fn}.failed")

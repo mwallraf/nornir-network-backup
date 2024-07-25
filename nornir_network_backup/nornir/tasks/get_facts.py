@@ -11,7 +11,9 @@ from nornir_network_backup.nornir.utils import (
     remove_file,
     clean_command_string,
 )
-from nornir_network_backup.nornir.tasks.netmiko_multiple_commands import netmiko_multiple_commands
+from nornir_network_backup.nornir.tasks.netmiko_multiple_commands import (
+    netmiko_multiple_commands,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +23,7 @@ CONNECTION_NAME = "netmiko"
 def parse_facts(task: Task, commands: list, results: dict) -> dict:
     """Parse the facts with textfsm"""
     parsed_results = {}
-    
+
     for cmd in commands:
         cmd_nice = clean_command_string(cmd)
         _content = results.get(cmd)
@@ -35,8 +37,8 @@ def parse_facts(task: Task, commands: list, results: dict) -> dict:
         if task_fact_to_yaml.changed and task_fact_to_yaml.result:
             _content = task_fact_to_yaml.result
             parsed_results[cmd] = _content
-            
-    return  Result(host=task.host, result=parsed_results)
+
+    return Result(host=task.host, result=parsed_results)
 
 
 def save_facts(task: Task, user_config: dict, commands: list, fact_data: dict) -> None:
@@ -45,7 +47,7 @@ def save_facts(task: Task, user_config: dict, commands: list, fact_data: dict) -
     """
     for cmd in commands:
         content, extension = fact_to_yml(fact_data.get(cmd))
-        
+
         fact_file = generate_filename(
             filetype="fact",
             hostname=task.host,
@@ -72,130 +74,145 @@ def task_get_facts(task: Task, user_config: dict, **kwargs) -> Result:
     """Gets all the facts, stored in consolidated_fact_commands
     Runs the textfsm parser if needed and store each fact in a
     separate file
-    
+
     This task should never fail since the primary job is to get the
-    running-config file. 
-    
+    running-config file.
+
     We will make a report of failed commands
     """
-        
-    # commands = get_fact_commands(task.host)
+
     commands = task.host.get("consolidated_fact_commands", [])
     use_textfsm = user_config["textfsm"]["enabled"]
 
     logger.debug(f"get all facts: {commands}, textfsm parsing enabled:{use_textfsm}")
 
-    # return Result(
-    #     host=task.host,
-    #     result=results_dict,
-    #     exception=exceptions,
-    #     all_commands=commands,
-    #     success_commands=success_commands,
-    #     failed_commands=failed_commands,
-    # )    
-    facts_results = task.run(task=netmiko_multiple_commands, commands=commands, name="netmiko_multiple_facts")
+    facts_results = task.run(
+        task=netmiko_multiple_commands,
+        commands=commands,
+        name="netmiko_multiple_facts",
+    )
 
-    logger.debug(f"fact results: {facts_results}")
-    
+    logger.debug(
+        f"fact results: {facts_results.success_commands} {facts_results.result}"
+    )
+
+    # store the raw output of the success commands
+    facts_raw_output = {}
+    for cmd in facts_results.success_commands:
+        facts_raw_output[cmd] = facts_results.result.get(cmd, "").splitlines()
+
+    logger.debug(f"facts raw output: {facts_raw_output}")
+
     if use_textfsm:
-        parsed_results = parse_facts(task, facts_results.success_commands, facts_results.result)
+        parsed_results = parse_facts(
+            task,
+            facts_results.success_commands,
+            facts_results.result,
+        )
         for cmd in parsed_results.result:
             facts_results.result[cmd] = parsed_results.result[cmd]
-            
-    save_facts(task, user_config, facts_results.all_commands, facts_results.result)
 
-    return Result(host=task.host, result=facts_results.result)
+    save_facts(
+        task,
+        user_config,
+        facts_results.all_commands,
+        facts_results.result,
+    )
+
+    return Result(
+        host=task.host,
+        result=facts_results.result,
+        facts_raw_output=facts_raw_output,
+    )
 
 
+# def task_get_facts_original(task: Task, user_config: dict, **kwargs) -> Result:
+#     # commands = get_fact_commands(task.host)
+#     commands = task.host.get("consolidated_fact_commands", [])
 
+#     facts = {
+#         "all_commands": [],
+#         "failed_commands": [],
+#         "success_commands": [],
+#         "failed": False,
+#     }
 
-def task_get_facts_original(task: Task, user_config: dict, **kwargs) -> Result:
-    # commands = get_fact_commands(task.host)
-    commands = task.host.get("consolidated_fact_commands", [])
+#     for cmd in commands:
+#         cmd_nice = clean_command_string(cmd)
+#         facts["all_commands"].append(cmd)
 
-    facts = {
-        "all_commands": [],
-        "failed_commands": [],
-        "success_commands": [],
-        "failed": False,
-    }
+#         output = task.run(
+#             name=f"fact_netmiko_send_command_{cmd_nice}",
+#             task=netmiko_send_command,
+#             command_string=f"{cmd}\n",
+#             # use_textfsm=user_config["textfsm"]["enabled"],
+#             # severity_level=logging.DEBUG,
+#         )
 
-    for cmd in commands:
-        cmd_nice = clean_command_string(cmd)
-        facts["all_commands"].append(cmd)
+#         if output.failed:
+#             facts["failed_commands"].append(cmd)
 
-        output = task.run(
-            name=f"fact_netmiko_send_command_{cmd_nice}",
-            task=netmiko_send_command,
-            command_string=f"{cmd}\n",
-            # use_textfsm=user_config["textfsm"]["enabled"],
-            # severity_level=logging.DEBUG,
-        )
+#         else:
+#             facts["success_commands"].append(cmd)
 
-        if output.failed:
-            facts["failed_commands"].append(cmd)
+#             use_textfsm = user_config["textfsm"]["enabled"]
 
-        else:
-            facts["success_commands"].append(cmd)
+#             _content = output.result
+#             # don't use netmiko textfsm parsing to have better error control
+#             # but if it succeeds then we'll replace the result
+#             if use_textfsm:
+#                 task_fact_to_yaml = task.run(
+#                     name=f"fact_to_yaml_{cmd_nice}",
+#                     task=task_textfsm,
+#                     cmd=cmd,
+#                     data=_content,
+#                 )
+#                 if task_fact_to_yaml.changed and task_fact_to_yaml.result:
+#                     _content = task_fact_to_yaml.result
 
-            use_textfsm = user_config["textfsm"]["enabled"]
+#                 # try:
+#                 #     __content = parse_output(
+#                 #         platform=task.host.platform, command=cmd, data=_content
+#                 #     )
+#                 #     _content = __content
+#                 # except Exception:
+#                 #     logger.error(
+#                 #         f"unable to parse textfsm for host:{task.host.name} platform:{task.host.platform} command:{cmd}"
+#                 #     )
+#                 #     pass
 
-            _content = output.result
-            # don't use netmiko textfsm parsing to have better error control
-            # but if it succeeds then we'll replace the result
-            if use_textfsm:
-                task_fact_to_yaml = task.run(
-                    name=f"fact_to_yaml_{cmd_nice}",
-                    task=task_textfsm,
-                    cmd=cmd,
-                    data=_content,
-                )
-                if task_fact_to_yaml.changed and task_fact_to_yaml.result:
-                    _content = task_fact_to_yaml.result
+#             # >>> vlan_parsed = parse_output(platform="cisco_ios", command="show vlan", data=vlan_output)
 
-                # try:
-                #     __content = parse_output(
-                #         platform=task.host.platform, command=cmd, data=_content
-                #     )
-                #     _content = __content
-                # except Exception:
-                #     logger.error(
-                #         f"unable to parse textfsm for host:{task.host.name} platform:{task.host.platform} command:{cmd}"
-                #     )
-                #     pass
+#             content, extension = fact_to_yml(_content)
 
-            # >>> vlan_parsed = parse_output(platform="cisco_ios", command="show vlan", data=vlan_output)
+#             fact_file = generate_filename(
+#                 filetype="fact",
+#                 hostname=task.host,
+#                 user_config=user_config,
+#                 command=cmd,
+#                 extension=extension,
+#                 remove_txt=True,
+#             )
 
-            content, extension = fact_to_yml(_content)
+#             if not output.result:
+#                 remove_file(fact_file)
+#                 continue
 
-            fact_file = generate_filename(
-                filetype="fact",
-                hostname=task.host,
-                user_config=user_config,
-                command=cmd,
-                extension=extension,
-                remove_txt=True,
-            )
+#             # may fail with OSError: [Errno 24], how to catch this?
+#             task.run(
+#                 task=write_file,
+#                 filename=fact_file,
+#                 content=f"{content}",
+#             )
 
-            if not output.result:
-                remove_file(fact_file)
-                continue
+#     # save the result to the inventory Host object
+#     # facts = {"all_commands": [], "failed_commands": [], "success_commands": []}
+#     facts["total_commands"] = len(facts["all_commands"])
+#     facts["total_failed_commands"] = len(facts["failed_commands"])
+#     facts["total_success_commands"] = len(facts["success_commands"])
+#     facts["failed"] = True if facts["failed_commands"] else False
 
-            # may fail with OSError: [Errno 24], how to catch this?
-            task.run(
-                task=write_file,
-                filename=fact_file,
-                content=f"{content}",
-            )
+#     task.host.data.setdefault("_backup_results", {}).setdefault("facts", facts)
 
-    # save the result to the inventory Host object
-    # facts = {"all_commands": [], "failed_commands": [], "success_commands": []}
-    facts["total_commands"] = len(facts["all_commands"])
-    facts["total_failed_commands"] = len(facts["failed_commands"])
-    facts["total_success_commands"] = len(facts["success_commands"])
-    facts["failed"] = True if facts["failed_commands"] else False
-
-    task.host.data.setdefault("_backup_results", {}).setdefault("facts", facts)
-
-    return Result(host=task.host, result=facts)
-    # return Result(host=task.host, result=facts, failed=failed)
+#     return Result(host=task.host, result=facts)
+#     # return Result(host=task.host, result=facts, failed=failed)

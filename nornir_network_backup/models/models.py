@@ -107,6 +107,7 @@ class Facts(myBaseModel):
     enabled: bool = False
     folder: Union[pathlib.Path, None] = pathlib.Path(DEFAULT_FACTS_FOLDER)
     summary: list[SummaryFact] = []
+    facts_in_config: list[str] = []
 
 
 class BackupNornirUserParams(myBaseModel):

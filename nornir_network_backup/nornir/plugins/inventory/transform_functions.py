@@ -28,33 +28,29 @@ def load_credentials(
         host.platform = platform
 
 
-def transform_consolidate_fact_commands(nr:Nornir) -> Nornir:
+def transform_consolidate_fact_commands(nr: Nornir) -> Nornir:
     """this is an inventory transform function that adds a new Host inventory attribute: consolidated_fact_commands
     This attribute has all the fact commands that should be run for this host and is derived from
     the host + group "cmd_facts" extended data
 
     Commands starting with a ^ will not be executed for this host
     """
-    for host in nr.inventory.hosts.values():    
+    for host in nr.inventory.hosts.values():
         fact_commands = [cmd for cmd in host.extended_data().get("cmd_facts", [])]
 
         for grp in host.groups:
-            fact_commands += [
-                cmd for cmd in grp.extended_data().get("cmd_facts", [])
-            ]
+            fact_commands += [cmd for cmd in grp.extended_data().get("cmd_facts", [])]
 
         fact_commands = list(set(fact_commands))
 
-        do_not_execute_commands = [
-            cmd for cmd in fact_commands if cmd.startswith("^")
-        ]
-        
+        do_not_execute_commands = [cmd for cmd in fact_commands if cmd.startswith("^")]
+
         fact_commands = [
             cmd
             for cmd in fact_commands
             if not cmd.startswith("^") and f"^{cmd}" not in do_not_execute_commands
         ]
 
-        host['consolidated_fact_commands'] = fact_commands
-    
+        host["consolidated_fact_commands"] = fact_commands
+
     return nr
