@@ -11,7 +11,7 @@ from nornir.core.plugins.inventory import (
     InventoryPluginRegister,
     TransformFunctionRegister,
 )
-from ruamel.yaml.main import round_trip_dump as yaml_dump
+from io import StringIO
 
 from nornir_task_duration.plugins.processors import TaskDuration
 
@@ -180,7 +180,10 @@ def fact_to_yml(content):
     extension = "txt"
     try:
         if type(content) is dict or type(content) is list:
-            content = yaml_dump(content)
+            stream = StringIO()
+            yaml = ruamel.yaml.YAML(typ="safe")
+            yaml.dump(content, stream)
+            content = stream.getvalue()
             extension = "yaml"
     except Exception:
         pass
