@@ -38,10 +38,17 @@ def print_results_csv(
         "backup_duration": backup_duration.total_seconds(),
     }
 
-    print_backup_summary_csv(summary_file, backup_stats, append=append_summary)
+    print_backup_summary_csv(
+        summary_file,
+        backup_stats,
+        append=append_summary,
+    )
 
     print_backup_result_details_csv(
-        details_file, result, backup_stats, append=append_details
+        details_file,
+        result,
+        backup_stats,
+        append=append_details,
     )
 
 
@@ -68,7 +75,7 @@ def print_backup_summary_csv(
         ]
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames, extrasaction="ignore")
         fp = Path(filename)
-        if append and fp.exists() and fp.stat().st_size == 0:
+        if not append or (fp.exists() and fp.stat().st_size == 0):
             writer.writeheader()
         writer.writerow(stats)
 
@@ -100,38 +107,55 @@ def print_backup_result_details_csv(filename, result, stats, append=False):
             "platform": host_data.host.platform,
             "os_slug": host_data.host.data.get("os_slug", ""),
             "config_file": backup_results.get("config", {}).get("backup_file", ""),
-            "changed": True
-            if backup_results.get("config", {}).get("diff_file", "")
-            else False,
+            "changed": (
+                True if backup_results.get("config", {}).get("diff_file", "") else False
+            ),
             "facts_commands": ",".join(
                 backup_results.get("facts", {}).get("all_commands", [])
             ),
             "facts_failed_commands": ",".join(
                 backup_results.get("facts", {}).get("failed_commands", [])
             ),
-            "facts_count": backup_results.get("facts", {}).get("total_commands", 0),
-            "facts_result": "failed"
-            if backup_results.get("facts", {}).get("failed", True)
-            else "success",
-            "facts_count_failed": backup_results.get("facts", {}).get(
-                "total_failed_commands", 0
+            "facts_failed_parser_commands": ",".join(
+                set(backup_results.get("facts", {}).get("all_commands", []))
+                - set(backup_results.get("facts", {}).get("parsed_commands", []))
+            ),
+            "facts_count_failed_parser": len(
+                set(backup_results.get("facts", {}).get("all_commands", []))
+                - set(backup_results.get("facts", {}).get("parsed_commands", []))
+            ),
+            "facts_count": len(backup_results.get("facts", {}).get("all_commands", [])),
+            "facts_result": (
+                "failed"
+                if backup_results.get("facts", {}).get("failed", True)
+                else "success"
+            ),
+            "facts_count_failed": len(
+                backup_results.get("facts", {}).get("failed_commands", [])
+            ),
+            "facts_parser_result": (
+                "failed"
+                if backup_results.get("facts", {}).get("failed_parser", True)
+                else "success"
             ),
         }
         records.append(record)
 
     with open(filename, "a" if append else "w") as csvfile:
         fieldnames = [
+            "host",
+            "result",
             "backup_start_date",
             "backup_start_time",
             "backup_duration",
             "task_start_time",
             "task_stop_time",
             "task_duration",
-            "host",
-            "result",
             "facts_result",
+            "facts_parser_result",
             "facts_count",
             "facts_count_failed",
+            "facts_count_failed_parser",
             "vendor",
             "os_slug",
             "platform",
@@ -140,11 +164,12 @@ def print_backup_result_details_csv(filename, result, stats, append=False):
             "config_file",
             "changed",
             "facts_failed_commands",
+            "facts_failed_parser_commands",
             "facts_commands",
         ]
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames, extrasaction="ignore")
         fp = Path(filename)
-        if append and fp.exists() and fp.stat().st_size == 0:
+        if not append or (fp.exists() and fp.stat().st_size == 0):
             writer.writeheader()
         writer.writerows(records)
 

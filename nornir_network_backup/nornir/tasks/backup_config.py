@@ -54,6 +54,8 @@ def task_backup_config(
         "failed": False,
     }
 
+    result_facts = {}
+
     # print(summary_facts)
 
     cmd_running_config = task.host.extended_data().get("cmd_running_config")
@@ -88,6 +90,8 @@ def task_backup_config(
                 # get "summary" facts, these will be included in the general backup config
                 if not fact_tasks_output.failed:
 
+                    result_facts = fact_tasks_output.results_facts_summary
+
                     # add facts that should be included in the running-config (as comment)
                     if user_config["facts"].get("facts_in_config"):
                         for _fact_output_cmd in fact_tasks_output.facts_raw_output:
@@ -119,6 +123,7 @@ def task_backup_config(
                             host=task.host,
                             wanted_summary_facts_dict=user_config["facts"]["summary"],
                         )
+
                     except Exception as e:
                         logger.error(
                             f"exception occurred getting the summary facts: {e}"
@@ -140,7 +145,9 @@ def task_backup_config(
                 content=generate_comment(summary_facts)
                 + facts_raw_output_config
                 + generate_comment("### RUNNING-CONFIG ###", header=[""])
+                + "\n"
                 + _running_config_sanitation(r.result)
+                + "\n" * 2
                 + generate_comment(["", "### END OF CONFIG ###"], header=[""]),
             )
 
@@ -184,6 +191,7 @@ def task_backup_config(
     task.host.data["_backup_results"]["config"]["diff_file"] = (
         config_diff_file if config_diff_file else ""
     )
+    task.host.data["_backup_results"]["facts"] = result_facts
 
     # TODO: this could still fail!!
     # ex.
@@ -209,13 +217,19 @@ def task_backup_config(
 
 
 def get_summary_facts(
-    results: MultiResult, host: Host, wanted_summary_facts_dict: dict
+    results: MultiResult,
+    host: Host,
+    wanted_summary_facts_dict: dict,
 ) -> dict:
     """Get summary facts from all the previous 'show' results of all the tasks
     with name "fact_netmiko_send_command"
 
     We'll check the fact output results first, afterwards we'll check the host
     data fields (fact info has priority)
+
+    If the host data field does not exist (because you may be running an ad-hoc host which does
+    not exist in the hosts file) but the data exists from the facts, then we will
+    overwrite the data fields.
 
     "summary" facts are pre-defined keywords in the nornir configuration file and
     these will be added on top of the backup configuration file as comments. Only
@@ -308,6 +322,15 @@ def get_summary_facts(
     #     print(f"KEY:{key}")
     #     if key.upper() in missing_wanted_facts:
     #         have_summary_facts[key.upper()] = host.data[key]
+
+    # set the host.data fields if needed
+    for key, val in have_summary_facts.items():
+        if (
+            (key.lower() in host.data and not host.data.get(key.lower()))
+            or (key.lower() not in host.data)
+        ) and val:
+            logger.debug(f"create or update host.data key '{key}' with value '{val}'")
+            host.data[key.lower()] = val
 
     return have_summary_facts
 

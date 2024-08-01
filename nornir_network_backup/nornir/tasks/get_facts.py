@@ -84,6 +84,15 @@ def task_get_facts(task: Task, user_config: dict, **kwargs) -> Result:
     commands = task.host.get("consolidated_fact_commands", [])
     use_textfsm = user_config["textfsm"]["enabled"]
 
+    results_facts_summary = {
+        "all_commands": commands,
+        "failed_commands": [],
+        "success_commands": [],
+        "parsed_commands": [],
+        "failed_parser": False,
+        "failed": False,
+    }
+
     logger.debug(f"get all facts: {commands}, textfsm parsing enabled:{use_textfsm}")
 
     facts_results = task.run(
@@ -91,6 +100,14 @@ def task_get_facts(task: Task, user_config: dict, **kwargs) -> Result:
         commands=commands,
         name="netmiko_multiple_facts",
     )
+
+    results_facts_summary["success_commands"] = (
+        [] if not facts_results.success_commands else facts_results.success_commands
+    )
+    results_facts_summary["failed_commands"] = (
+        [] if not facts_results.failed_commands else facts_results.failed_commands
+    )
+    results_facts_summary["failed"] = True if facts_results.failed_commands else False
 
     logger.debug(
         f"fact results: {facts_results.success_commands} {facts_results.result}"
@@ -111,6 +128,15 @@ def task_get_facts(task: Task, user_config: dict, **kwargs) -> Result:
         )
         for cmd in parsed_results.result:
             facts_results.result[cmd] = parsed_results.result[cmd]
+            if isinstance(parsed_results.result[cmd], list) or isinstance(
+                parsed_results.result[cmd], dict
+            ):
+                results_facts_summary["parsed_commands"].append(cmd)
+
+    if len(results_facts_summary["parsed_commands"]) != len(
+        results_facts_summary["success_commands"]
+    ):
+        results_facts_summary["failed_parser"] = True
 
     save_facts(
         task,
@@ -123,6 +149,7 @@ def task_get_facts(task: Task, user_config: dict, **kwargs) -> Result:
         host=task.host,
         result=facts_results.result,
         facts_raw_output=facts_raw_output,
+        results_facts_summary=results_facts_summary,
     )
 
 
