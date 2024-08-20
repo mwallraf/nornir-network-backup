@@ -44,10 +44,10 @@ def run_backup_process(nr, nr_unfiltered):
     )
 
     for failed_host in result.failed_hosts:
-        print(f"{failed_host}: FAILED")
+        # print(f"{failed_host}: FAILED")
         logger.error(f"FAILED HOST: {failed_host}")
 
-    #print(nornir_inspect(result))
+    # print(nornir_inspect(result))
 
     backup_end_time = datetime.datetime.now()
 
@@ -56,6 +56,18 @@ def run_backup_process(nr, nr_unfiltered):
     nbr_processed_hosts = len(result.items())
     nbr_failed_hosts = len(result.failed_hosts)
     nbr_success_hosts = nbr_processed_hosts - nbr_failed_hosts
+    # consider the result a success if we exceed the expected configured success rate
+    overall_success = (
+        True
+        if (
+            not result.failed
+            or (
+                ((nbr_success_hosts / nbr_processed_hosts) * 100)
+                >= nr.config.user_defined.reports.min_success_rate
+            )
+        )
+        else False
+    )
 
     logger.info(
         f"--- {nbr_success_hosts} FINISHED IN {backup_duration.total_seconds()} SECONDS, {nbr_failed_hosts} FAILED ---"
@@ -78,6 +90,7 @@ def run_backup_process(nr, nr_unfiltered):
         append_details=nr.config.user_defined["backup_config"]["reports"]["details"][
             "append"
         ],
+        overall_success=overall_success,
         **dict(
             starttime=backup_start_time,
             stoptime=backup_end_time,
@@ -158,7 +171,7 @@ def nr_backup(
     _apply_inventory_transformation(
         nr_filtered, username=username, password=password, platform=platform
     )
-    
+
     # add consolidated_fact_commands to each host
     nr_filtered = _apply_transform_consolidate_fact_commands(nr_filtered)
 

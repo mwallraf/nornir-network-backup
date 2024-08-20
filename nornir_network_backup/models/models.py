@@ -87,6 +87,7 @@ class Details(myBaseModel):
 
 
 class Reports(myBaseModel):
+    min_success_rate: int = 95
     summary: Summary = Summary()
     details: Details = Details()
 

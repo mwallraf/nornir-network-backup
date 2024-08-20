@@ -8,6 +8,7 @@ def print_results_csv(
     result,
     append_summary=False,
     append_details=False,
+    overall_success=False,
     **kwargs,
 ):
     """print summary and detailed output files"""
@@ -27,7 +28,9 @@ def print_results_csv(
     backup_stats = {
         "backup_start_date": backup_start_date,
         "backup_start_time": backup_start_time,
-        "overall_result": "success" if not result.failed else "failed",
+        "overall_result": (
+            "success" if overall_success else "failed"
+        ),  # not result.failed else "failed",
         "nbr_unfiltered_hosts": total_host_cnt,
         "nbr_filtered_hosts": filtered_host_cnt,
         "nbr_processed_hosts": nbr_processed_hosts,
