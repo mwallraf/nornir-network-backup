@@ -56,15 +56,17 @@ def run_backup_process(nr, nr_unfiltered):
     nbr_processed_hosts = len(result.items())
     nbr_failed_hosts = len(result.failed_hosts)
     nbr_success_hosts = nbr_processed_hosts - nbr_failed_hosts
+
+    # TOOD: why is the validated_config object not used ??
+    min_success_rate = nr.config.user_defined["backup_config"]["reports"].get(
+        "min_success_rate", 95
+    )
     # consider the result a success if we exceed the expected configured success rate
     overall_success = (
         True
         if (
             not result.failed
-            or (
-                ((nbr_success_hosts / nbr_processed_hosts) * 100)
-                >= nr.config.user_defined.reports.min_success_rate
-            )
+            or (((nbr_success_hosts / nbr_processed_hosts) * 100) >= min_success_rate)
         )
         else False
     )
