@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "nornir-network-backup"
-version = "0.1.2a6"
+version = "0.1.2a7"
 description = ""
 authors = ["Maarten Wallraf <mwallraf@2nms.com>"]
 readme = "README.md"

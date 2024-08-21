@@ -1,5 +1,8 @@
+import logging
 import csv
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 def print_results_csv(
@@ -41,18 +44,32 @@ def print_results_csv(
         "backup_duration": backup_duration.total_seconds(),
     }
 
-    print_backup_summary_csv(
-        summary_file,
-        backup_stats,
-        append=append_summary,
-    )
+    try:
+        print_backup_summary_csv(
+            summary_file,
+            backup_stats,
+            append=append_summary,
+        )
+    except Exception as e:
+        logger.warning(
+            f"Error occurred while generating the summary report file: {summary_file}"
+        )
+        logger.exception(e)
+        pass
 
-    print_backup_result_details_csv(
-        details_file,
-        result,
-        backup_stats,
-        append=append_details,
-    )
+    try:
+        print_backup_result_details_csv(
+            details_file,
+            result,
+            backup_stats,
+            append=append_details,
+        )
+    except Exception as e:
+        logger.warning(
+            f"Error occurred while generating the detailed report file: {details_file}"
+        )
+        logger.exception(e)
+        pass
 
 
 def print_backup_summary_csv(
@@ -61,6 +78,8 @@ def print_backup_summary_csv(
     append=False,
 ):
     """prints a summary of the entire backup process in CSV format"""
+
+    logger.debug(f"Generate the backup summary report: {filename}")
 
     with open(filename, "a" if append else "w") as csvfile:
         fieldnames = [
@@ -89,60 +108,74 @@ def print_backup_summary_csv(
 
 def print_backup_result_details_csv(filename, result, stats, append=False):
     """prints the backup result details in CSV format"""
+
+    logger.debug(f"Generate the backup details report: {filename}")
+
     records = []
     # write the host details
     for host, host_data in result.items():
         backup_results = host_data.host.data.get("_backup_results", {})
         facts_failed = backup_results.get("facts", {}).get("failed", True)
         config_failed = backup_results.get("config", {}).get("failed", True)
-        record = {
-            "result": "failed" if (facts_failed or config_failed) else "success",
-            "backup_start_date": stats["backup_start_date"],
-            "backup_start_time": stats["backup_start_time"],
-            "backup_duration": stats["backup_duration"],
-            "task_start_time": str(backup_results.get("starttime", "")),
-            "task_stop_time": str(backup_results.get("endtime", "")),
-            "task_duration": backup_results.get("duration", -1),
-            "host": host,
-            "hwtype": host_data.host.data.get("hwtype", ""),
-            "vendor": host_data.host.data.get("vendor", ""),
-            "software": host_data.host.data.get("software", ""),
-            "platform": host_data.host.platform,
-            "os_slug": host_data.host.data.get("os_slug", ""),
-            "config_file": backup_results.get("config", {}).get("backup_file", ""),
-            "changed": (
-                True if backup_results.get("config", {}).get("diff_file", "") else False
-            ),
-            "facts_commands": ",".join(
-                backup_results.get("facts", {}).get("all_commands", [])
-            ),
-            "facts_failed_commands": ",".join(
-                backup_results.get("facts", {}).get("failed_commands", [])
-            ),
-            "facts_failed_parser_commands": ",".join(
-                set(backup_results.get("facts", {}).get("all_commands", []))
-                - set(backup_results.get("facts", {}).get("parsed_commands", []))
-            ),
-            "facts_count_failed_parser": len(
-                set(backup_results.get("facts", {}).get("all_commands", []))
-                - set(backup_results.get("facts", {}).get("parsed_commands", []))
-            ),
-            "facts_count": len(backup_results.get("facts", {}).get("all_commands", [])),
-            "facts_result": (
-                "failed"
-                if backup_results.get("facts", {}).get("failed", True)
-                else "success"
-            ),
-            "facts_count_failed": len(
-                backup_results.get("facts", {}).get("failed_commands", [])
-            ),
-            "facts_parser_result": (
-                "failed"
-                if backup_results.get("facts", {}).get("failed_parser", True)
-                else "success"
-            ),
-        }
-        records.append(record)
+        try:
+            record = {
+                "result": "failed" if (facts_failed or config_failed) else "success",
+                "backup_start_date": stats["backup_start_date"],
+                "backup_start_time": stats["backup_start_time"],
+                "backup_duration": stats["backup_duration"],
+                "task_start_time": str(backup_results.get("starttime", "")),
+                "task_stop_time": str(backup_results.get("endtime", "")),
+                "task_duration": backup_results.get("duration", -1),
+                "host": host,
+                "hwtype": host_data.host.data.get("hwtype", ""),
+                "vendor": host_data.host.data.get("vendor", ""),
+                "software": host_data.host.data.get("software", ""),
+                "platform": host_data.host.platform,
+                "os_slug": host_data.host.data.get("os_slug", ""),
+                "config_file": backup_results.get("config", {}).get("backup_file", ""),
+                "changed": (
+                    True
+                    if backup_results.get("config", {}).get("diff_file", "")
+                    else False
+                ),
+                "facts_commands": ",".join(
+                    backup_results.get("facts", {}).get("all_commands", [])
+                ),
+                "facts_failed_commands": ",".join(
+                    backup_results.get("facts", {}).get("failed_commands", [])
+                ),
+                "facts_failed_parser_commands": ",".join(
+                    set(backup_results.get("facts", {}).get("all_commands", []))
+                    - set(backup_results.get("facts", {}).get("parsed_commands", []))
+                ),
+                "facts_count_failed_parser": len(
+                    set(backup_results.get("facts", {}).get("all_commands", []))
+                    - set(backup_results.get("facts", {}).get("parsed_commands", []))
+                ),
+                "facts_count": len(
+                    backup_results.get("facts", {}).get("all_commands", [])
+                ),
+                "facts_result": (
+                    "failed"
+                    if backup_results.get("facts", {}).get("failed", True)
+                    else "success"
+                ),
+                "facts_count_failed": len(
+                    backup_results.get("facts", {}).get("failed_commands", [])
+                ),
+                "facts_parser_result": (
+                    "failed"
+                    if backup_results.get("facts", {}).get("failed_parser", True)
+                    else "success"
+                ),
+            }
+            records.append(record)
+        except Exception as e:
+            logger.warning(
+                f"Something happened creating the detailed output report, skipping record for host: {host}"
+            )
+            logger.exception(e)
+            continue
 
     with open(filename, "a" if append else "w") as csvfile:
         fieldnames = [
@@ -175,6 +208,3 @@ def print_backup_result_details_csv(filename, result, stats, append=False):
         if not append or (fp.exists() and fp.stat().st_size == 0):
             writer.writeheader()
         writer.writerows(records)
-
-    # with open("config-backups-details.txt", "a") as f:
-    #     f.write(json.dumps(report) + "\n")
