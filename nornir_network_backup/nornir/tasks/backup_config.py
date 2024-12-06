@@ -64,12 +64,20 @@ def task_backup_config(
     # r = None
     summary_facts = dict()
 
-    # try:
-    #     r = task.run(task=netmiko_send_command, command_string=cmd_running_config)
-    # except Exception:
-    #     pass
+    r = None
+    try:
+        r = task.run(task=netmiko_send_command, command_string=cmd_running_config)
+    except Exception as e:
+        logger.debug("show running-config failed ... let's retry with timing")
+        logger.error(e)
 
-    r = task.run(task=netmiko_send_command, command_string=cmd_running_config)
+    if not r:
+        try:
+            r = task.run(task=netmiko_send_command, command_string=cmd_running_config, use_timing=True)
+        except Exception as e:
+            logger.debug("show running-config still failed ...")
+            logger.error(e)
+
 
     if r:
 
