@@ -65,6 +65,7 @@ logger = logging.getLogger(__name__)
 MAP_OS_SLUG_TO_PLATFORM = {
     "ciena-generic": "ciena_saos",
     "saos6": "ciena_saos",
+    "saos10": "ciena_saos10",
     "ios-xe": "cisco_ios",
     "ios-xr": "cisco_xr",
     "ios-generic": "cisco_ios",
